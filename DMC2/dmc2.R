@@ -34,6 +34,11 @@ setLevels <- function (data, attr, levels) {
   return(data)
 }
 
+
+# Reduce charge
+training_data$Charge <- as.factor(sub("-.*", "", training_data$Charge))
+test_data$Charge <- as.factor(sub("-.*", "", test_data$Charge))
+
 # Unify Yes/ No fields
 # --------------------------------------------------
 levels <- c("No", "Yes")
@@ -137,13 +142,13 @@ training_data$Year <- as.integer(training_data$Year)
 # install.packages("arules")
 library(arules)
 # Equal frequency binning
-equiFreqLatitude = discretize(training_data$Latitude, categories=9, method="cluster", onlycuts=TRUE)
+equiFreqLatitude = discretize(training_data$Latitude, categories=18, method="cluster", onlycuts=TRUE)
 training_data$LatitudeDiscr = cut(training_data$Latitude, breaks=equiFreqLatitude, ordered_result=TRUE, right=FALSE)
 test_data$LatitudeDiscr = cut(test_data$Latitude, breaks=equiFreqLatitude, ordered_result=TRUE, right=FALSE)
 # table(training_data$LatitudeDiscr, useNA="ifany")
 # str(training_data)
 
-equiFreqLongitude = discretize(training_data$Longitude, categories=9, method="cluster", onlycuts=TRUE)
+equiFreqLongitude = discretize(training_data$Longitude, categories=18, method="cluster", onlycuts=TRUE)
 training_data$LongitudeDiscr = cut(training_data$Longitude, breaks=equiFreqLongitude, ordered_result=TRUE, right=FALSE)
 test_data$LongitudeDiscr = cut(test_data$Longitude, breaks=equiFreqLongitude, ordered_result=TRUE, right=FALSE)
 # table(training_data$LongitudeDiscr, useNA="ifany")
@@ -372,6 +377,14 @@ test_data$Description <- NULL
 
 # TODO: decide whether to remove description
 
+# Drop the id column
+training_data$id <- NULL
+# Drop driverCity and model
+training_data$DriverCity <- NULL
+training_data$Model <- NULL
+test_data$DriverCity <- NULL
+test_data$Model <- NULL
+
 #install.packages("FSelector")
 library(FSelector)
 # Calculate weights for the attributes using Info Gain and Gain Ratio
@@ -383,6 +396,8 @@ weights_gain_ratio
 
 most_important_attributes <- cutoff.k(weights_info_gain, 25)
 most_important_attributes
+
+reduced_formula <- as.simple.formula(most_important_attributes, "Citation")
 
 # COMMERCIAL VEHICLE and YEAR seem to be of no importance, remove them
 training_data$Year <- NULL
@@ -408,8 +423,8 @@ test_small<-training_data[-InTrain,]
 
 
 # http://bigcomputing.blogspot.de/2014/10/an-example-of-using-random-forest-in.html
-#duration+clickMaxPrice+cartMaxPrice+cartSumPrice+addressType+accountLifetime+clickCount
-rf_model<-train(Citation~.,data=training_data,method="rf",
+# State + VehicleType + Charge + Race + ArrestType + Alcohol + Speed + Accident + Belts + PersonalInjury + PropertyDamage + Fatal + License + HAZMAT + CommercialLicense + WorkZone + Accident + Life + Danger + Drug + Crosswalk + Registration + Lights + Phone + RedSignal + MedCert + RightOfWay + Highway + NoPassing + Insurence + Turn + Pedestrian + Child + Passenger + Stop + Tire + Signs + Police + Lane
+rf_model<-train(Citation ~ Alcohol + Speed + Accident + Belts + PersonalInjury + PropertyDamage + Fatal + License + HAZMAT + CommercialLicense + WorkZone + Accident + Life + Danger + Drug + Crosswalk + Registration + Lights + Phone + RedSignal + MedCert + RightOfWay + Highway + NoPassing + Insurence + Turn + Pedestrian + Child + Passenger + Stop + Tire + Signs + Police + Lane,data=training_small,method="rf",
                 trControl=trainControl(method="cv",number=10),
                 prox=TRUE,allowParallel = TRUE, na.action = na.exclude)
 
