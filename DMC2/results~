@@ -1,0 +1,31 @@
+Random Forest 
+
+3684 samples
+  46 predictors
+   2 classes: 'No', 'Yes' 
+
+No pre-processing
+Resampling: Cross-Validated (10 fold) 
+Summary of sample sizes: 3315, 3316, 3315, 3315, 3317, 3316, ... 
+Resampling results across tuning parameters:
+
+  mtry  Accuracy   Kappa      Accuracy SD  Kappa SD  
+    2   0.6718351  0.3380757  0.01961672   0.03931208
+   69   0.7329029  0.4658878  0.02907658   0.05844270
+  136   0.7231313  0.4463402  0.02961884   0.05939643
+
+Accuracy was used to select the optimal model using  the largest value.
+The final value used for the model was mtry = 69. 
+> print(rf_model$finalModel)
+
+Call:
+ randomForest(x = x, y = y, mtry = param$mtry, proximity = TRUE,      allowParallel = TRUE) 
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 69
+
+        OOB estimate of  error rate: 27.09%
+Confusion matrix:
+      No  Yes class.error
+No  1307  481   0.2690157
+Yes  517 1379   0.2726793

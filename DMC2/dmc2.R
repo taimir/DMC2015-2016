@@ -134,42 +134,6 @@ training_data$Year[training_data$Year == 2077] = 2007
 training_data$Year[training_data$Year == 0] = median(training_data$Year)
 training_data$Year <- as.integer(training_data$Year)
 
-# Discretize Longitude and Latitude
-# ----------------------------------------------------
-# TODO: do this by considering longitude and lat. at the same time (squares in 2D space)
-# So far I've seen no obvious "separation" in the locations, so
-# discretization with a single rule seems meaningless
-# install.packages("arules")
-library(arules)
-# Equal frequency binning
-equiFreqLatitude = discretize(training_data$Latitude, categories=18, method="cluster", onlycuts=TRUE)
-training_data$LatitudeDiscr = cut(training_data$Latitude, breaks=equiFreqLatitude, ordered_result=TRUE, right=FALSE)
-test_data$LatitudeDiscr = cut(test_data$Latitude, breaks=equiFreqLatitude, ordered_result=TRUE, right=FALSE)
-# table(training_data$LatitudeDiscr, useNA="ifany")
-# str(training_data)
-
-equiFreqLongitude = discretize(training_data$Longitude, categories=18, method="cluster", onlycuts=TRUE)
-training_data$LongitudeDiscr = cut(training_data$Longitude, breaks=equiFreqLongitude, ordered_result=TRUE, right=FALSE)
-test_data$LongitudeDiscr = cut(test_data$Longitude, breaks=equiFreqLongitude, ordered_result=TRUE, right=FALSE)
-# table(training_data$LongitudeDiscr, useNA="ifany")
-# str(training_data)
-
-
-
-# Handle NA values
-# ----------------------------------------------------
-# Only for longitude and latitude, replace with median
-# remove NA Year and NA color
-naCols = c("Longitude", "Latitude")
-pp<- preProcess(training_data[naCols], method = c("medianImpute"))
-preprocessed <- predict(pp, newdata = training_data[naCols])
-training_data$Latitude = preprocessed$Latitude
-training_data$Longitude = preprocessed$Longitude
-
-# remove other NA values
-training_data <- training_data[complete.cases(training_data),]
-colSums(is.na(training_data))
-
 
 
 # New fields
@@ -355,7 +319,46 @@ test_data <- extractField(test_data, c("OFFICER"), "Police")
 training_data <- extractField(training_data, c("LANE"), "Lane")
 test_data <- extractField(test_data, c("LANE"), "Lane")
 
+# Handle NA values
+# ----------------------------------------------------
+# Only for longitude and latitude, replace with median
+# remove NA Year and NA color
+naCols = c("Longitude", "Latitude")
+pp<- preProcess(training_data[naCols], method = c("medianImpute"))
+preprocessed <- predict(pp, newdata = training_data[naCols])
+training_data$Latitude = preprocessed$Latitude
+training_data$Longitude = preprocessed$Longitude
 
+pp <- preProcess(test_data[naCols], method = c("medianImpute"))
+preprocessed <- predict(pp, newdata = test_data[naCols])
+test_data$Latitude = preprocessed$Latitude
+test_data$Longitude = preprocessed$Longitude
+
+# remove other NA values
+training_data <- training_data[complete.cases(training_data),]
+# colSums(is.na(training_data))
+# 
+# colSums(is.na(test_data))
+
+# Discretize Longitude and Latitude
+# ----------------------------------------------------
+# TODO: do this by considering longitude and lat. at the same time (squares in 2D space)
+# So far I've seen no obvious "separation" in the locations, so
+# discretization with a single rule seems meaningless
+# install.packages("arules")
+library(arules)
+# Equal frequency binning
+equiFreqLatitude = discretize(training_data$Latitude, categories=18, method="cluster", onlycuts=TRUE)
+training_data$LatitudeDiscr = cut(training_data$Latitude, breaks=equiFreqLatitude, ordered_result=TRUE, right=FALSE)
+test_data$LatitudeDiscr = cut(test_data$Latitude, breaks=equiFreqLatitude, ordered_result=TRUE, right=FALSE)
+# table(training_data$LatitudeDiscr, useNA="ifany")
+# str(training_data)
+
+equiFreqLongitude = discretize(training_data$Longitude, categories=18, method="cluster", onlycuts=TRUE)
+training_data$LongitudeDiscr = cut(training_data$Longitude, breaks=equiFreqLongitude, ordered_result=TRUE, right=FALSE)
+test_data$LongitudeDiscr = cut(test_data$Longitude, breaks=equiFreqLongitude, ordered_result=TRUE, right=FALSE)
+# table(training_data$LongitudeDiscr, useNA="ifany")
+# str(training_data)
 
 
 # Multicolinearity
@@ -371,9 +374,13 @@ test_data <- extractField(test_data, c("LANE"), "Lane")
 training_data$Latitude <- NULL
 test_data$Latitude <- NULL
 training_data$Longitude <- NULL
-test_data&Longitude <- NULL
+test_data$Longitude <- NULL
 training_data$Description <- NULL
 test_data$Description <- NULL
+test_data$Color <- NULL
+training_data$Color <- NULL
+test_data$Year <- NULL
+training_data$Year <- NULL
 
 # TODO: decide whether to remove description
 
@@ -417,40 +424,28 @@ prop.table(table(training_data$Citation)) # close enough
 #http://topepo.github.io/caret/training.html
 
 #Partition training set for faster model training
-InTrain<-createDataPartition(y=training_data$Citation,p=0.5,list=FALSE)
-training_small<-training_data[InTrain,]
-test_small<-training_data[-InTrain,]
+# InTrain<-createDataPartition(y=training_data$Citation,p=0.5,list=FALSE)
+# training_small<-training_data[InTrain,]
+# test_small<-training_data[-InTrain,]
 
 
 # http://bigcomputing.blogspot.de/2014/10/an-example-of-using-random-forest-in.html
-# State + VehicleType + Charge + Race + ArrestType + Alcohol + Speed + Accident + Belts + PersonalInjury + PropertyDamage + Fatal + License + HAZMAT + CommercialLicense + WorkZone + Accident + Life + Danger + Drug + Crosswalk + Registration + Lights + Phone + RedSignal + MedCert + RightOfWay + Highway + NoPassing + Insurence + Turn + Pedestrian + Child + Passenger + Stop + Tire + Signs + Police + Lane
-rf_model<-train(Citation ~ Alcohol + Speed + Accident + Belts + PersonalInjury + PropertyDamage + Fatal + License + HAZMAT + CommercialLicense + WorkZone + Accident + Life + Danger + Drug + Crosswalk + Registration + Lights + Phone + RedSignal + MedCert + RightOfWay + Highway + NoPassing + Insurence + Turn + Pedestrian + Child + Passenger + Stop + Tire + Signs + Police + Lane,data=training_small,method="rf",
+# LatitudeDiscr + LongitudeDiscr + VehicleType + Charge + Race + ArrestType + Alcohol + Speed + Accident + Belts + PersonalInjury + PropertyDamage + Fatal + License + HAZMAT + CommercialLicense + WorkZone + Accident + Life + Danger + Drug + Crosswalk + Registration + Lights + Phone + RedSignal + MedCert + RightOfWay + Highway + NoPassing + Insurence + Turn + Pedestrian + Child + Passenger + Stop + Tire + Signs + Police + Lane
+library(caret)
+rf_model<-train(Citation ~ LatitudeDiscr + LongitudeDiscr + VehicleType + Charge + Race + ArrestType + Alcohol + Speed + Accident + Belts + PersonalInjury + PropertyDamage + Fatal + License + HAZMAT + CommercialLicense + WorkZone + Accident + Life + Danger + Drug + Crosswalk + Registration + Lights + Phone + RedSignal + MedCert + RightOfWay + Highway + NoPassing + Insurence + Turn + Pedestrian + Child + Passenger + Stop + Tire + Signs + Police + Lane,data=training_data,method="rf",
                 trControl=trainControl(method="cv",number=10),
                 prox=TRUE,allowParallel = TRUE, na.action = na.exclude)
 
 print(rf_model)
 print(rf_model$finalModel)
 
-#Check importance of all features in dataset
-importance <- rf_model$finalModel$importance
-var_importance <-  varImp(rf_model, scale = FALSE)
-plot(var_importance, top = 30)
-plot(importance, top = 30)
-
-
 ######################################################
 # 5. Predict Classes in Test Data
-dim(test_data)
-summary(test_data)
-names(test_data)
-
-#Remove id, availability and onlineStatus features
-test_data <- test_data[,c(-1)]
-
-prediction_classes = predict.train(object=rf_model, newdata=test_data, na.action=na.pass)
-prediction_classes
+prediction_classes = predict.train(object=rf_model, newdata=test_data)
 
 predictions = data.frame(id=test_data$id, prediction=prediction_classes)
 predictions
+
+write.csv(predictions, file="predictions_dmc2.csv", row.names=FALSE)
 
 
