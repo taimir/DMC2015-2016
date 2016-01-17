@@ -36,8 +36,8 @@ setLevels <- function (data, attr, levels) {
 
 
 # Reduce charge
-training_data$Charge <- as.factor(sub("-.*", "", training_data$Charge))
-test_data$Charge <- as.factor(sub("-.*", "", test_data$Charge))
+# training_data$Charge <- as.factor(sub("-.*", "", training_data$Charge))
+# test_data$Charge <- as.factor(sub("-.*", "", test_data$Charge))
 
 # Unify Yes/ No fields
 # --------------------------------------------------
@@ -124,7 +124,7 @@ test_data <- unifyLevels(test_data, "ArrestType")
 
 # Remove missing features
 # ----------------------------------------------------
-drop <- c("TimeOfStop", "Agency", "SubAgency", "Geolocation", "Article", "Location")
+drop <- c("TimeOfStop", "Agency", "SubAgency", "Geolocation", "Article")
 training_data <- training_data[,!(names(training_data) %in% drop)]
 test_data <- test_data[,!(names(test_data) %in% drop)]
 
@@ -319,17 +319,23 @@ test_data <- extractField(test_data, c("OFFICER"), "Police")
 training_data <- extractField(training_data, c("LANE"), "Lane")
 test_data <- extractField(test_data, c("LANE"), "Lane")
 
+# TODO: add the WOEID field (geolocation) by using the twitteR package
+# library(twitteR)
+# # For a given lat and long:
+# closestTrendLocations(lat, long, ...)[1, "woeid"]
+
+
 # Handle NA values
 # ----------------------------------------------------
 # Only for longitude and latitude, replace with median
 # remove NA Year and NA color
 naCols = c("Longitude", "Latitude")
-pp<- preProcess(training_data[naCols], method = c("medianImpute"))
+pp<- preProcess(training_data[naCols], method = c("knnImpute"), k = 5)
 preprocessed <- predict(pp, newdata = training_data[naCols])
 training_data$Latitude = preprocessed$Latitude
 training_data$Longitude = preprocessed$Longitude
 
-pp <- preProcess(test_data[naCols], method = c("medianImpute"))
+pp <- preProcess(test_data[naCols], method = c("knnImpute"), k = 5)
 preprocessed <- predict(pp, newdata = test_data[naCols])
 test_data$Latitude = preprocessed$Latitude
 test_data$Longitude = preprocessed$Longitude
@@ -340,24 +346,24 @@ training_data <- training_data[complete.cases(training_data),]
 # 
 # colSums(is.na(test_data))
 
-# Discretize Longitude and Latitude
-# ----------------------------------------------------
-# TODO: do this by considering longitude and lat. at the same time (squares in 2D space)
-# So far I've seen no obvious "separation" in the locations, so
-# discretization with a single rule seems meaningless
-# install.packages("arules")
-library(arules)
-# Equal frequency binning
-equiFreqLatitude = discretize(training_data$Latitude, categories=18, method="cluster", onlycuts=TRUE)
-training_data$LatitudeDiscr = cut(training_data$Latitude, breaks=equiFreqLatitude, ordered_result=TRUE, right=FALSE)
-test_data$LatitudeDiscr = cut(test_data$Latitude, breaks=equiFreqLatitude, ordered_result=TRUE, right=FALSE)
-# table(training_data$LatitudeDiscr, useNA="ifany")
-# str(training_data)
-
-equiFreqLongitude = discretize(training_data$Longitude, categories=18, method="cluster", onlycuts=TRUE)
-training_data$LongitudeDiscr = cut(training_data$Longitude, breaks=equiFreqLongitude, ordered_result=TRUE, right=FALSE)
-test_data$LongitudeDiscr = cut(test_data$Longitude, breaks=equiFreqLongitude, ordered_result=TRUE, right=FALSE)
-# table(training_data$LongitudeDiscr, useNA="ifany")
+# # Discretize Longitude and Latitude
+# # ----------------------------------------------------
+# # TODO: do this by considering longitude and lat. at the same time (squares in 2D space)
+# # So far I've seen no obvious "separation" in the locations, so
+# # discretization with a single rule seems meaningless
+# # install.packages("arules")
+# library(arules)
+# # Equal frequency binning
+# equiFreqLatitude = discretize(training_data$Latitude, categories=18, method="cluster", onlycuts=TRUE)
+# training_data$LatitudeDiscr = cut(training_data$Latitude, breaks=equiFreqLatitude, ordered_result=TRUE, right=FALSE)
+# test_data$LatitudeDiscr = cut(test_data$Latitude, breaks=equiFreqLatitude, ordered_result=TRUE, right=FALSE)
+# # table(training_data$LatitudeDiscr, useNA="ifany")
+# # str(training_data)
+# 
+# equiFreqLongitude = discretize(training_data$Longitude, categories=18, method="cluster", onlycuts=TRUE)
+# training_data$LongitudeDiscr = cut(training_data$Longitude, breaks=equiFreqLongitude, ordered_result=TRUE, right=FALSE)
+# test_data$LongitudeDiscr = cut(test_data$Longitude, breaks=equiFreqLongitude, ordered_result=TRUE, right=FALSE)
+# # table(training_data$LongitudeDiscr, useNA="ifany")
 # str(training_data)
 
 
@@ -370,51 +376,43 @@ test_data$LongitudeDiscr = cut(test_data$Longitude, breaks=equiFreqLongitude, or
 # Feature selection
 # ----------------------------------------------------
 
-# Remove some excess fields
-training_data$Latitude <- NULL
-test_data$Latitude <- NULL
-training_data$Longitude <- NULL
-test_data$Longitude <- NULL
-training_data$Description <- NULL
-test_data$Description <- NULL
-test_data$Color <- NULL
-training_data$Color <- NULL
-test_data$Year <- NULL
-training_data$Year <- NULL
-
-# TODO: decide whether to remove description
-
-# Drop the id column
-training_data$id <- NULL
-# Drop driverCity and model
-training_data$DriverCity <- NULL
-training_data$Model <- NULL
-test_data$DriverCity <- NULL
-test_data$Model <- NULL
-
 #install.packages("FSelector")
 library(FSelector)
 # Calculate weights for the attributes using Info Gain and Gain Ratio
 weights_info_gain = information.gain(Citation ~ ., data=training_data)
-weights_info_gain
+weights_info_gain[order(-weights_info_gain$attr_importance), , drop = FALSE]
 
-weights_gain_ratio = gain.ratio(Citation ~ ., data=training_data)
-weights_gain_ratio
 
-most_important_attributes <- cutoff.k(weights_info_gain, 25)
-most_important_attributes
+most_important_attributes <- cutoff.k.percent(weights_info_gain, 0.9)
 
 reduced_formula <- as.simple.formula(most_important_attributes, "Citation")
 
-# COMMERCIAL VEHICLE and YEAR seem to be of no importance, remove them
-training_data$Year <- NULL
-test_data$Year <- NULL
-training_data$CommercialVehicle <- NULL
-test_data$CommercialVehicle <- NULL
-
-# check the proportions of the labels
-prop.table(table(training_data$Citation)) # close enough
-
+# # Remove some excess fields
+# training_data$Latitude <- NULL
+# test_data$Latitude <- NULL
+# training_data$Longitude <- NULL
+# test_data$Longitude <- NULL
+# training_data$Description <- NULL
+# test_data$Description <- NULL
+# test_data$Color <- NULL
+# training_data$Color <- NULL
+# test_data$Year <- NULL
+# training_data$Year <- NULL
+# 
+# # TODO: decide whether to remove description
+# 
+# # Drop the id column
+# training_data$id <- NULL
+# # Drop driverCity and model
+# training_data$DriverCity <- NULL
+# training_data$Model <- NULL
+# test_data$DriverCity <- NULL
+# test_data$Model <- NULL
+# # COMMERCIAL VEHICLE and YEAR seem to be of no importance, remove them
+# training_data$Year <- NULL
+# test_data$Year <- NULL
+# training_data$CommercialVehicle <- NULL
+# test_data$CommercialVehicle <- NULL
 
 ######################################################
 # 4. Training & Evaluation
@@ -424,16 +422,23 @@ prop.table(table(training_data$Citation)) # close enough
 #http://topepo.github.io/caret/training.html
 
 #Partition training set for faster model training
-# InTrain<-createDataPartition(y=training_data$Citation,p=0.5,list=FALSE)
-# training_small<-training_data[InTrain,]
-# test_small<-training_data[-InTrain,]
+InTrain<-createDataPartition(y=training_data$Citation,p=0.3,list=FALSE)
+training_small<-training_data[InTrain,]
+test_small<-training_data[-InTrain,]
 
 
 # http://bigcomputing.blogspot.de/2014/10/an-example-of-using-random-forest-in.html
 # LatitudeDiscr + LongitudeDiscr + VehicleType + Charge + Race + ArrestType + Alcohol + Speed + Accident + Belts + PersonalInjury + PropertyDamage + Fatal + License + HAZMAT + CommercialLicense + WorkZone + Accident + Life + Danger + Drug + Crosswalk + Registration + Lights + Phone + RedSignal + MedCert + RightOfWay + Highway + NoPassing + Insurence + Turn + Pedestrian + Child + Passenger + Stop + Tire + Signs + Police + Lane
 library(caret)
-rf_model<-train(Citation ~ LatitudeDiscr + LongitudeDiscr + VehicleType + Charge + Race + ArrestType + Alcohol + Speed + Accident + Belts + PersonalInjury + PropertyDamage + Fatal + License + HAZMAT + CommercialLicense + WorkZone + Accident + Life + Danger + Drug + Crosswalk + Registration + Lights + Phone + RedSignal + MedCert + RightOfWay + Highway + NoPassing + Insurence + Turn + Pedestrian + Child + Passenger + Stop + Tire + Signs + Police + Lane,data=training_data,method="rf",
-                trControl=trainControl(method="cv",number=10),
+
+# check the proportions of the labels
+prop.table(table(training_data$Citation)) # close enough
+
+manual_formula <- Citation ~ LatitudeDiscr + LongitudeDiscr + VehicleType + Charge + Race + ArrestType + Alcohol + Speed + Accident + Belts + PersonalInjury + PropertyDamage + Fatal + License + HAZMAT + CommercialLicense + WorkZone + Accident + Life + Danger + Drug + Crosswalk + Registration + Lights + Phone + RedSignal + MedCert + RightOfWay + Highway + NoPassing + Insurence + Turn + Pedestrian + Child + Passenger + Stop + Tire + Signs + Police + Lane
+rf_model<-train(reduced_formula,
+                data=training_small,
+                method="rf",
+                trControl=trainControl(method="cv",number=5),
                 prox=TRUE,allowParallel = TRUE, na.action = na.exclude)
 
 print(rf_model)
