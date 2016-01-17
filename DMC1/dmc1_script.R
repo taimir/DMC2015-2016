@@ -162,10 +162,10 @@ colSums(is.na(test_data))
 #http://topepo.github.io/caret/training.html
 
 # Stratify to reach equal prop.
-#library(ROSE)
+library(ROSE)
 # Instead of sample size (N=1100), one can specify the probability of rare class resampling, e.g. p=0.5
-training_data = ovun.sample(order ~ ., data=training_data, method="over", p = 0.55, na.action="na.pass")$data
-table(training_data$order)
+# training_data = ovun.sample(order ~ ., data=training_data, method="over", p = 0.55, na.action="na.pass")$data
+# table(training_data$order)
 
 
 #Partition training set for faster model training
@@ -176,12 +176,13 @@ test_small<-training_data[-InTrain,]
 # Train RandomForest model
 # ,classProbs=TRUE,summaryFunction=twoClassSummary
 # 
-rf_model<-train(order ~ .,data=training_small,
+rf_model<-train(order ~ .,data=training_data,
                 method="rf",
                 trControl=trainControl(method="cv",number=10),
                 ntree = 501,
                 prox=TRUE, allowParallel = TRUE,na.action = na.exclude)
 
+rf_model
 
 # Train AdaBoost Model
 # ada_model<-ada(training_data[,!names(training_data) %in% c("order")], training_data$order,
@@ -219,7 +220,7 @@ rf_model<-train(order ~ .,data=training_small,
 
 #Make RF predictions
  prediction_classes_rf = predict.train(object=rf_model, newdata=test_data)
- predictions_rf = data.frame(id=test_data$id, prediction=prediction_classes_rf)
+ predictions_rf = data.frame(id=id_test, prediction=prediction_classes_rf)
 # 
 # #Make Ada predictions
 # prediction_classes_ada = predict(ada_model, newdata=test_data, type = c("vector", "probs", "both", "F"))
@@ -238,7 +239,7 @@ rf_model<-train(order ~ .,data=training_small,
 # # 6. Export the Predictions
 # 
 # write.csv(predictions_ada, file="predictions_dmc1_ada.csv", row.names=FALSE)
-  write.csv(predictions_rf, file="predictions_dmc1_rf_PCA_noSampling.csv", row.names=FALSE)
+write.csv(predictions_rf, file="results/predictions_dmc1_rf_withPCA_noSampling.csv", row.names=FALSE)
 # write.csv(predictions1, file="predictions_dmc1_gbm.csv", row.names=FALSE)
 
 print("Done. Files saved. ")
