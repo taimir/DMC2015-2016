@@ -24,11 +24,11 @@ table(same)
 prop.table(table(rf_YN$prediction))
 
 
-# Classes predicted as 'yes' by gbm_YN model
+# Row numbers predicted as 'yes' by gbm_YN model
 true_pre = which(gbm_YN$prediction == 'y')
-# Classes predicted as 'no' by gbm_YN model
+# Row numbers predicted as 'no' by gbm_YN model
 false_pre = which(gbm_YN$prediction == 'n')
 
-# How many of yes and no predictions are differently predicted by rf_YN
+# How many of yes and no predictions by model above are differently predicted by rf_YN
 table(rf_YN$prediction[true_pre])
 table(rf_YN$prediction[false_pre])
