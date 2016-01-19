@@ -1,14 +1,14 @@
 # Business Analytics
 # Data Mining Cup 1 - Online sales prediction
-
 # The caret package is used (http://topepo.github.io/caret/index.html)
 #install.packages("caret")
+
+setwd("C:/Users/user/Documents/GitHub/DMC2015-2016/DMC1")
 library(caret)
 library("DMwR")
 
 # For reasons of traceability you must use a fixed seed
 set.seed(42) # do NOT CHANGE this seed
-
 
 ######################################################
 # 1. Build a Team in the DMC Manager
@@ -46,12 +46,22 @@ test_data$startHour <- factor(test_data$startHour)
 training_data$clickPriceRange = training_data$clickMaxPrice - training_data$clickMinPrice
 test_data$clickPriceRange = test_data$clickMaxPrice - test_data$clickMinPrice
 
-training_data$cartPriceRange = training_data$cartMaxPrice - training_data$cartMinPrice
-test_data$cartPriceRange = test_data$cartMaxPrice - test_data$cartMinPrice
+# Price range 
+# ClicPriceRange -> ClickMaxPrice 87.1% # consider removing it
+# training_data$cartPriceRange = training_data$cartMaxPrice - training_data$cartMinPrice
+# test_data$cartPriceRange = test_data$cartMaxPrice - test_data$cartMinPrice
 
-# Add average item price in cart
-training_data$AvgItemPrice = training_data$cartSumPrice / training_data$cartCount
-test_data$AvgItemPrice = test_data$cartSumPrice / test_data$cartCount
+# Add average item price in cart ---- NOT useful because 97% correlated with cartMinPrice and 94% cartMaxPrice
+#training_data$AvgItemPrice = training_data$cartSumPrice / training_data$cartCount
+#test_data$AvgItemPrice = test_data$cartSumPrice / test_data$cartCount
+
+#ClickMinPrice and CartMinPrice have 92% correlation, so we remove CartMinPrice
+training_data$cartMinPrice <- NULL
+test_data$cartMinPrice <- NULL
+
+# cartMaxPrice -> clickMinPrice cartMaxPrice has around 70% correlation wiht two more features, try removing it
+#training_data$cartMaxPrice <- NULL
+#training_data$cartMaxPrice <- NULL
 
 # Count and save row indexes that have NaN value in either onlineStatus or availability coulmn
 status_availability_train = training_data[,c("onlineStatus","availability")]
@@ -140,8 +150,9 @@ weights_info_gain[order(-weights_info_gain$attr_importance), , drop = FALSE]
 # test_data$age <- NULL
 # test_data$lastOrder <- NULL
 
-pca <- preProcess(combined_data, method = "pca", thresh = 0.90)
-combined_data <- predict(pca, newdata = combined_data)
+# PCA 
+# pca <- preProcess(combined_data, method = "pca", thresh = 0.90)
+# combined_data <- predict(pca, newdata = combined_data)
 
 training_data <- cbind(combined_data[1:4000, ], training_data$order)
 colnames(training_data)[length(training_data)] = "order"
@@ -151,9 +162,6 @@ colnames(test_data)[length(test_data)] = "order"
 
 #Remove id column, not needed for training
 training_data = training_data[,!names(training_data) %in% c("id")]
-
-colSums(is.na(training_data))
-colSums(is.na(test_data))
 
 ######################################################
 # 4. Training & Evaluation
@@ -175,15 +183,13 @@ test_small<-training_data[-InTrain,]
 
 # Train RandomForest model
 # ,classProbs=TRUE,summaryFunction=twoClassSummary
-# 
-rf_model<-train(order ~ .,data=training_data,
+# # 
+rf_model<-train(order ~ .,data=training_small,
                 method="rf",
                 trControl=trainControl(method="cv",number=10),
                 ntree = 501,
-                prox=TRUE, allowParallel = TRUE,na.action = na.exclude)
-
-rf_model
-
+                prox=TRUE,allowParallel=TRUE)
+rf_model_dao = rf_model
 # Train AdaBoost Model
 # ada_model<-ada(training_data[,!names(training_data) %in% c("order")], training_data$order,
 #                loss=c("exponential","logistic"),
@@ -200,7 +206,7 @@ rf_model
 
 
 #Train Gradient Boosting Machines model
-# gbmGrid <-  expand.grid(interaction.depth = c(1, 3, 5, 9),
+# gbmGrid <-  expand.grid(interaction.depth = c(3, 5, 9, 11, 13),
 #                         n.trees = (1:20)*50,
 #                         shrinkage = 0.01,
 #                         n.minobsinnode = 10)
@@ -209,38 +215,39 @@ rf_model
 #                  trControl=trainControl(method="cv",number=10), 
 #                  tuneGrid=gbmGrid,  
 #                  verbose = FALSE)
-# 
-# 
+
+print(rf_model)
 # print(rf_model)
-# print(rf_model)
-# var_importance <-  varImp(gbm_model, scale = FALSE)
-# plot(var_importance)
+# gbm_model
+var_importance <-  varImp(rf_model, scale = FALSE)
+var_importance
+plot(var_importance)
 ######################################################
 # 5. Predict Classes in Test Data
 
 #Make RF predictions
- prediction_classes_rf = predict.train(object=rf_model, newdata=test_data)
- predictions_rf = data.frame(id=id_test, prediction=prediction_classes_rf)
+prediction_classes_rf = predict.train(object=rf_model, newdata=test_data)
+predictions_rf = data.frame(id=id_test, prediction=prediction_classes_rf)
 # 
-# #Make Ada predictions
-# prediction_classes_ada = predict(ada_model, newdata=test_data, type = c("vector", "probs", "both", "F"))
-# predictions_ada = data.frame(id=test_data$id, prediction=prediction_classes_ada)
+#Make Ada predictions
+#prediction_classes_ada = predict(ada_model, newdata=test_data, type = c("vector", "probs", "both", "F"))
+#predictions_ada = data.frame(id=id_test, prediction=prediction_classes_ada)
 #  
 # #Make GBM predictions
-# prediction_classes_gbm = predict.train(object=gbm_model, newdata=test_data)
-# predictions_gbm = data.frame(id=test_data$id, prediction=prediction_classes_gbm)
+# prediction_classes_gbm = predict.train(object=gbm_model, newdata=test_data) 
+# predictions_gbm = data.frame(id=id_test, prediction=prediction_classes_gbm)
 #  
 # # Check the proportion of y/n values of dependent variable order in train and test set
 # prop.table(table(training_data$order))
-# prop.table(table(prediction_classes_rf))
+# prop.table(table(prediction_classes_ada))
 
 #
 # ######################################################
 # # 6. Export the Predictions
 # 
-# write.csv(predictions_ada, file="predictions_dmc1_ada.csv", row.names=FALSE)
-write.csv(predictions_rf, file="results/predictions_dmc1_rf_withPCA_noSampling.csv", row.names=FALSE)
-# write.csv(predictions1, file="predictions_dmc1_gbm.csv", row.names=FALSE)
+# write.csv(predictions_ada, file="predictions_dmc1_ada_no_pca_no_sampl.csv", row.names=FALSE)
+write.csv(predictions_rf, file="results/predictions_dmc1_rf_featureSelection.csv", row.names=FALSE)
+# write.csv(predictions_gbm, file="predictions_dmc1_gbm_withPCA_noSampling.csv", row.names=FALSE)
 
 print("Done. Files saved. ")
 ######################################################
